@@ -1,5 +1,5 @@
 <h1><center>Jos Lab 1: Booting a PC</center></h1>
-<center>朱伯君 &nbsp &nbsp 515030910298 </center><br>
+
 
 ## Part 1: PC Bootstrap
 
