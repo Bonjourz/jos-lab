@@ -13,6 +13,7 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+static int runcmd(char *buf, struct Trapframe *tf);
 
 struct Command {
 	const char *name;
@@ -24,6 +25,8 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Show the trace of stack", mon_backtrace },
+	{ "time", "Get the CPU cycles", mon_time }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -69,10 +72,54 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
-    cprintf("Backtrace success\n");
+	cprintf("Stack backtrace:\n");
+	uint32_t *ebp = (uint32_t *)read_ebp();
+	while (ebp) {	
+		cprintf("  eip %08x ebp %08x args %08x %08x %08x %08x %08x\n",
+			ebp[1], (uint32_t)ebp, ebp[2], ebp[3], 
+			ebp[4], ebp[5], ebp[6]);
+		struct Eipdebuginfo info;
+		debuginfo_eip(ebp[1], &info);
+		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line, 
+		info.eip_fn_namelen ,info.eip_fn_name, ebp[1] - info.eip_fn_addr);
+		
+		ebp = (uint32_t *)ebp[0];
+	
+	
+	}
+	cprintf("Backtrace success\n");
 	return 0;
 }
 
+int 
+mon_time(int argc, char **argv, struct Trapframe *tf) {
+	int i = 1, size = 0, MAXLEN = 1024;
+	char buf[MAXLEN];
+	char *ptr = buf;
+
+	for (; i < argc; i++) {
+		char *c = argv[i];
+		while (*c != '\0') {
+			*(ptr++) = *c;
+			c++;
+			if (size++ >= MAXLEN) {
+				cprintf("To many args!\n");
+				return 0;
+			}
+		}
+		*(ptr++) = ' ';
+	}
+	*ptr = '\0';
+	unsigned long long begin, end;
+	unsigned int eax, edx;
+	 __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+	begin = ((unsigned long long)edx << 32) | (unsigned long long)eax;
+	runcmd(buf, tf);
+	__asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+        end = ((unsigned long long)edx << 32) | (unsigned long long)eax;
+	cprintf("kerninfo cycles: %lld\n", end - begin);	
+	return 0;
+}
 
 
 /***** Kernel monitor command interpreter *****/
