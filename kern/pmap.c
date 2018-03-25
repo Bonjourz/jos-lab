@@ -257,7 +257,7 @@ page_init(void)
 	// free pages!
 	size_t i;
 	for (i = 0; i < npages; i++) {
-		if ((i != 0 && i < npages_basemem) ||
+		if ((i > 0 && i < npages_basemem) ||
 		 (i >= (size_t)(boot_alloc(0) - KERNBASE) / PGSIZE)) {
 			 pages[i].pp_link = page_free_list;
 			 page_free_list = &pages[i];
@@ -287,6 +287,7 @@ page_alloc(int alloc_flags)
 	struct Page *page = page_free_list;
 	page_free_list = page_free_list->pp_link;
 	page->pp_link = NULL;
+	//if (page->pp_ref != 0) cprintf("not zero %d\n", (int)page->pp_ref);
 	if (alloc_flags & ALLOC_ZERO)
 		memset(page2kva(page), 0, PGSIZE);
 
@@ -343,8 +344,22 @@ page_decref(struct Page* pp)
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
-	// Fill this function in
-	return NULL;
+	uint32_t pdx = PDX(va);
+	if (!(pgdir[pdx] & PTE_P) && !create)
+		return NULL;
+
+	if (!(pgdir[pdx] & PTE_P) && create) {
+		struct Page *newpage = page_alloc(1);
+		if (!newpage)
+			return NULL;
+
+		assert(!newpage->pp_ref);
+		newpage->pp_ref++;
+		pgdir[pdx] = page2pa(newpage) | PTE_P | PTE_W | PTE_U;
+	}
+
+	pte_t *pte_dir = KADDR(PTE_ADDR(pgdir[pdx]));
+	return &pte_dir[PTX(va)];
 }
 
 //
@@ -361,6 +376,18 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	//pgdir_walk(pde_t *pgdir, const void *va, int create)
+	pte_t *pte;
+	while (size > 0) {
+		pte = pgdir_walk(pgdir, (const void *)va, 1);
+		if (!pte)
+			panic("Cannot map the va to pa\n");
+
+		*pte = PTE_ADDR(pa) | (perm | PTE_P);
+		va += PGSIZE;
+		pa += PGSIZE;
+		size -= PGSIZE;
+	}
 }
 
 //
@@ -407,6 +434,16 @@ int
 page_insert(pde_t *pgdir, struct Page *pp, void *va, int perm)
 {
 	// Fill this function in
+	pte_t *pte = pgdir_walk(pgdir, va, 1);
+	if (!pte)
+		return -E_NO_MEM;
+
+	// Should increse the ref count first, or
+	// it will be moved to page_free_list if
+	// it is just the page pgdir_walk() alloc.
+	pp->pp_ref++;
+	page_remove(pgdir, va);
+	*pte = page2pa(pp) | perm | PTE_P;
 	return 0;
 }
 
@@ -425,7 +462,14 @@ struct Page *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+	pte_t *pte = pgdir_walk(pgdir, va, 0);
+	if (pte_store)
+		*pte_store = pte;
+
+	if (!pte || (*pte & PTE_P) == 0)
+		return NULL;
+
+	return pa2page(*pte);
 }
 
 //
@@ -447,6 +491,13 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+	pte_t *pte_store;
+	struct Page *page = page_lookup(pgdir, va, &pte_store);
+	*pte_store = 0;
+
+	tlb_invalidate(pgdir, va);
+	if (page)
+		page_decref(page);
 }
 
 //
