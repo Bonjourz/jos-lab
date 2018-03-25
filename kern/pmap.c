@@ -122,7 +122,7 @@ boot_alloc(uint32_t n)
 void
 mem_init(void)
 {
-	uint32_t cr0;
+	uint32_t cr0, cr4;
 	size_t n;
 
 	// Find out how much memory the machine has (npages & npages_basemem).
@@ -176,6 +176,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
+	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -188,6 +189,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
+	boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -197,6 +199,8 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
+	//boot_map_region(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
+	boot_map_region_large(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
@@ -208,6 +212,9 @@ mem_init(void)
 	//
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
+	cr4 = rcr4();
+	cr4 |= CR4_PSE;
+	lcr4(cr4);
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
@@ -258,7 +265,7 @@ page_init(void)
 	size_t i;
 	for (i = 0; i < npages; i++) {
 		if ((i > 0 && i < npages_basemem) ||
-		 (i >= (size_t)(boot_alloc(0) - KERNBASE) / PGSIZE)) {
+		 (i >= (size_t)PADDR(boot_alloc(0)) / PGSIZE)) {
 			 pages[i].pp_link = page_free_list;
 			 page_free_list = &pages[i];
 		} else {
@@ -287,7 +294,6 @@ page_alloc(int alloc_flags)
 	struct Page *page = page_free_list;
 	page_free_list = page_free_list->pp_link;
 	page->pp_link = NULL;
-	//if (page->pp_ref != 0) cprintf("not zero %d\n", (int)page->pp_ref);
 	if (alloc_flags & ALLOC_ZERO)
 		memset(page2kva(page), 0, PGSIZE);
 
@@ -314,6 +320,7 @@ page_free(struct Page *pp)
 void
 page_decref(struct Page* pp)
 {
+	assert(pp->pp_ref > 0);
 	if (--pp->pp_ref == 0)
 		page_free(pp);
 }
@@ -383,7 +390,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		if (!pte)
 			panic("Cannot map the va to pa\n");
 
-		*pte = PTE_ADDR(pa) | (perm | PTE_P);
+		*pte = PTE_ADDR(pa) | perm | PTE_P;
 		va += PGSIZE;
 		pa += PGSIZE;
 		size -= PGSIZE;
@@ -404,6 +411,17 @@ static void
 boot_map_region_large(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	while (size > 0) {
+		uint32_t pde = PDX(va);
+		if (!(pgdir[pde] & PTE_P))
+			pgdir[pde] = PTE_ADDR(pa) | PTE_P | PTE_PS | perm;
+		else
+			panic("The va 0x%08x has been used\n", va);
+
+		va += PTSIZE;
+		pa += PTSIZE;
+		size -= PTSIZE;
+	}
 }
 
 //
