@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -26,7 +27,8 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Show the trace of stack", mon_backtrace },
-	{ "time", "Get the CPU cycles", mon_time }
+	{ "time", "Get the CPU cycles", mon_time },
+	{ "showmappings", "Show the info of memory map", mon_showmapping }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -64,7 +66,7 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 static uint32_t
 read_pretaddr() {
     uint32_t pretaddr;
-    __asm __volatile("leal 4(%%ebp), %0" : "=r" (pretaddr)); 
+    __asm __volatile("leal 4(%%ebp), %0" : "=r" (pretaddr));
     return pretaddr;
 }
 
@@ -74,24 +76,24 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	// Your code here.
 	cprintf("Stack backtrace:\n");
 	uint32_t *ebp = (uint32_t *)read_ebp();
-	while (ebp) {	
+	while (ebp) {
 		cprintf("  eip %08x ebp %08x args %08x %08x %08x %08x %08x\n",
-			ebp[1], (uint32_t)ebp, ebp[2], ebp[3], 
+			ebp[1], (uint32_t)ebp, ebp[2], ebp[3],
 			ebp[4], ebp[5], ebp[6]);
 		struct Eipdebuginfo info;
 		debuginfo_eip(ebp[1], &info);
-		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line, 
+		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line,
 		info.eip_fn_namelen ,info.eip_fn_name, ebp[1] - info.eip_fn_addr);
-		
+
 		ebp = (uint32_t *)ebp[0];
-	
-	
+
+
 	}
 	cprintf("Backtrace success\n");
 	return 0;
 }
 
-int 
+int
 mon_time(int argc, char **argv, struct Trapframe *tf) {
 	int i = 1, size = 0, MAXLEN = 1024;
 	char buf[MAXLEN];
@@ -117,7 +119,55 @@ mon_time(int argc, char **argv, struct Trapframe *tf) {
 	runcmd(buf, tf);
 	__asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
         end = ((unsigned long long)edx << 32) | (unsigned long long)eax;
-	cprintf("kerninfo cycles: %lld\n", end - begin);	
+	cprintf("kerninfo cycles: %lld\n", end - begin);
+	return 0;
+}
+
+static int char2num(char *ch, uint32_t *res, const char *num_ch) {
+  if (*ch == '\0') {
+		*res = 0;
+		return 1;
+	}
+
+  uint32_t mul = char2num(ch + 1, res, num_ch);
+  /* The return value of 0 means something error */
+	if (mul < 0)
+		return -1;
+
+  char *cdx = strchr(num_ch, *ch);
+  if (cdx == 0)
+    return -1;
+
+	*res += (uint32_t)(cdx - num_ch) * mul;
+	return mul * 16;
+}
+
+static int parse(char *ch, uint32_t *res) {
+	if (strncmp("0x", ch, 2))
+		return 0;
+
+	const char *num_ch = "0123456789abcdef";
+	if (char2num(ch + 2, res, num_ch) < 0)
+        return 0;
+
+	return 1;
+}
+
+int mon_showmapping(int argc, char **argv, struct Trapframe *tf) {
+	if (argc != 3) {
+		cprintf("Should use like: showmappings [num] [num]\n");
+		return 0;
+	}
+
+	uint32_t begin, end;
+	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
+		goto error;
+
+    show_map(begin, end);
+	return 0;
+
+error:
+	cprintf("Invalid input!\n");
 	return 0;
 }
 

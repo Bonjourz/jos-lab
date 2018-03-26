@@ -61,6 +61,7 @@ struct Page *page_lookup(pde_t *pgdir, void *va, pte_t **pte_store);
 void	page_decref(struct Page *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
+void  show_map(uint32_t begin, uint32_t end);
 
 static inline physaddr_t
 page2pa(struct Page *pp)

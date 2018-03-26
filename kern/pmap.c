@@ -177,6 +177,7 @@ mem_init(void)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
 	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U | PTE_P);
+	cprintf("pages addr %08x %08x\n", PADDR(pages), kern_pgdir[PDX(UPAGES)]);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -199,7 +200,6 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	//boot_map_region(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
 	boot_map_region_large(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
 
 	// Check that the initial page directory has been set up correctly.
@@ -352,6 +352,9 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	uint32_t pdx = PDX(va);
+	if (pgdir[pdx] & PTE_P & PTE_PS)
+		return &pgdir[pdx];
+
 	if (!(pgdir[pdx] & PTE_P) && !create)
 		return NULL;
 
@@ -530,6 +533,54 @@ tlb_invalidate(pde_t *pgdir, void *va)
 	invlpg(va);
 }
 
+
+static void show_info();
+//
+// Show the map information from the address of begin to
+// the address of end. Remember the make the address align to
+// the page size.
+//
+void show_map(uint32_t begin, uint32_t end) {
+	uint32_t pgbase = (UVPT & 0xffc00000) | ((UVPT & 0xffc00000) >> 10);
+	uint32_t ptbase = (UVPT & 0xffc00000) | ((begin & 0xffc00000) >> 10);
+  begin = begin / PGSIZE * PGSIZE;
+	end = ROUNDUP(end, PGSIZE);
+	while (begin < end) {
+		pde_t *pde = (pde_t *)pgbase;
+		// If page directory doesn't exitst
+		if (!(pde[PDX(begin)] & PTE_P)) {
+			cprintf("0x%08x-0x%08x no mapping\n", begin, MAX(begin + PTSIZE, end));
+			begin += PTSIZE;
+		} else {
+			pde += PDX(begin);
+			pte_t *pte = NULL;
+			uint32_t info;
+			// If 2MB page
+			if (*pde & PTE_PS) {
+				cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x br", begin, begin + PTSIZE,
+				PTE_ADDR(*pde), PTE_ADDR(*pde+ PGSIZE));
+				begin += PTSIZE;
+				info = (uint32_t)*pde;
+			} else {// If 4KB page, update pte
+				pte = (pte_t *)ptbase;
+				if (!(pte[PTX(begin)] & PTE_P)) {
+					begin += PGSIZE;
+					continue;
+				} else {
+					cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x -r", begin, begin + PGSIZE,
+				PTE_ADDR(pte[PTX(begin)]), PTE_ADDR(pte[PTX(begin)] + PGSIZE));
+					begin += PGSIZE;
+					pte += PTX(begin);
+					info = *pte;
+				}
+			}
+			if (info & PTE_U) cprintf("u");
+			else cprintf("-");
+			if (info & PTE_W) cprintf("w\n");
+			else cprintf("-\n");
+		}
+	}
+}
 
 // --------------------------------------------------------------
 // Checking functions.
