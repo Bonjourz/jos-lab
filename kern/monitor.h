@@ -18,5 +18,6 @@ int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
 int mon_time(int argc, char **argv, struct Trapframe *tf);
 int mon_showmapping(int argc, char **argv, struct Trapframe *tf);
 int mon_pagechmod(int argc, char **argv, struct Trapframe *tf);
+int mon_memdump(int argc, char **argv, struct Trapframe *tf);
 
 #endif	// !JOS_KERN_MONITOR_H

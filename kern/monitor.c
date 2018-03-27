@@ -29,7 +29,8 @@ static struct Command commands[] = {
 	{ "backtrace", "Show the trace of stack", mon_backtrace },
 	{ "time", "Get the CPU cycles", mon_time },
 	{ "showmappings", "Show the info of memory map", mon_showmapping },
-	{ "pagechmod", "Change the mode of the page", mon_pagechmod }
+	{ "pagechmod", "Change the mode of the page", mon_pagechmod }, 
+	{ "memdump", "Dump the content of memory", mon_memdump }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -176,7 +177,7 @@ int mon_pagechmod(int argc, char **argv, struct Trapframe *tf) {
 	if (argc < 3)
 		goto error;
 
-	uint32_t addr;
+	uint32_t addr = 0;
 	if (!parse(argv[1], &addr))
 		goto error;
 
@@ -210,6 +211,29 @@ int mon_pagechmod(int argc, char **argv, struct Trapframe *tf) {
 error:
 	cprintf("Usage: pagechmod <addr> <options...>\n");
 	return 0;
+}
+
+int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
+	if (argc < 3)
+		goto error;
+
+	uint32_t begin = 0, end = 0, i, count = 0;
+	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
+		goto error;
+	
+	cprintf("0x%08x: ", begin);
+	for (i = begin; i < end; i++, count++) {
+		if (count == 10) {
+			cprintf("\n0x%08x: ", begin + i);
+			count = 0;
+		}
+		cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
+	}
+	cprintf("\n");
+	return 0;
+	error:
+		cprintf("Usage: memdump <begin addr> <end addr>\n");
+		return 0;
 }
 
 
