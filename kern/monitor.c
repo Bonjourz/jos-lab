@@ -28,7 +28,8 @@ static struct Command commands[] = {
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Show the trace of stack", mon_backtrace },
 	{ "time", "Get the CPU cycles", mon_time },
-	{ "showmappings", "Show the info of memory map", mon_showmapping }
+	{ "showmappings", "Show the info of memory map", mon_showmapping },
+	{ "pagechmod", "Change the mode of the page", mon_pagechmod }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -155,7 +156,7 @@ static int parse(char *ch, uint32_t *res) {
 
 int mon_showmapping(int argc, char **argv, struct Trapframe *tf) {
 	if (argc != 3) {
-		cprintf("Should use like: showmappings [num] [num]\n");
+		cprintf("Usage: showmappings <begin addr> <end addr>\n");
 		return 0;
 	}
 
@@ -168,6 +169,46 @@ int mon_showmapping(int argc, char **argv, struct Trapframe *tf) {
 
 error:
 	cprintf("Invalid input!\n");
+	return 0;
+}
+
+int mon_pagechmod(int argc, char **argv, struct Trapframe *tf) {
+	if (argc < 3)
+		goto error;
+
+	uint32_t addr;
+	if (!parse(argv[1], &addr))
+		goto error;
+
+  int perm = 0, i = 2;
+  for (; i < argc; i++) {
+    if (!strncmp(argv[i], "P", 1))
+			perm |= PTE_P;
+    else if (!strncmp(argv[i], "W", 1))
+			perm |= PTE_W;
+		else if (!strncmp(argv[i], "U", 1))
+			perm |= PTE_U;
+		else if (!strncmp(argv[i], "PWT", 3))
+			perm |= PTE_PWT;
+		else if (!strncmp(argv[i], "PCD", 3))
+			perm |= PTE_PCD;
+		else if (!strncmp(argv[i], "A", 1))
+			perm |= PTE_A;
+		else if (!strncmp(argv[i], "D", 1))
+			perm |= PTE_D;
+		else if (!strncmp(argv[i], "G", 1))
+			perm |= PTE_G;
+		else {
+			cprintf("The privilege bit: %s is invalid\n", argv[i]);
+			return 0;
+		}
+  }
+	if (!page_chmod(perm, addr))
+		cprintf("The addr of %08x hasn't been mapped\n", addr);
+	return 0;
+
+error:
+	cprintf("Usage: pagechmod <addr> <options...>\n");
 	return 0;
 }
 

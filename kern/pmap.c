@@ -177,13 +177,12 @@ mem_init(void)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
 	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U | PTE_P);
-	cprintf("pages addr %08x %08x\n", PADDR(pages), kern_pgdir[PDX(UPAGES)]);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
 	// We consider the entire range from [KSTACKTOP-PTSIZE, KSTACKTOP)
-	// to be the kernel stack, but break this into two pieces:
+	// to be the kernecprintf("pages addr %08x %08x\n", PADDR(pages), kern_pgdir[PDX(UPAGES)]);l stack, but break this into two pieces:
 	//     * [KSTACKTOP-KSTKSIZE, KSTACKTOP) -- backed by physical memory
 	//     * [KSTACKTOP-PTSIZE, KSTACKTOP-KSTKSIZE) -- not backed; so if
 	//       the kernel overflows its stack, it will fault rather than
@@ -352,8 +351,10 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	uint32_t pdx = PDX(va);
-	if (pgdir[pdx] & PTE_P & PTE_PS)
+	if (pgdir[pdx] & PTE_P & PTE_PS) {
+		//pgdir = KADDR(pgdir);
 		return &pgdir[pdx];
+	}
 
 	if (!(pgdir[pdx] & PTE_P) && !create)
 		return NULL;
@@ -534,52 +535,84 @@ tlb_invalidate(pde_t *pgdir, void *va)
 }
 
 
-static void show_info();
+static pte_t *getpte(uint32_t addr, int *flag) {
+	uint32_t pgbase = (UVPT & 0xffc00000) | ((UVPT & 0xffc00000) >> 10);
+	uint32_t ptbase = (UVPT & 0xffc00000) | ((addr & 0xffc00000) >> 10);
+	pde_t *pde = (pde_t *)pgbase;
+	if (!(pde[PDX(addr)] & PTE_P)) {
+		*flag = 1;
+		return NULL;
+	}
+
+	if (pde[PDX(addr)] & PTE_PS) {
+		*flag = 0;
+		return &pde[PDX(addr)];
+	}
+
+	pte_t *pte = (pte_t *)ptbase;
+	if (!(pte[PTX(addr)] & PTE_P)) {
+			*flag = 2;
+			return NULL;
+	}
+
+	*flag = 0;
+	return &pte[PTX(addr)];
+}
 //
 // Show the map information from the address of begin to
 // the address of end. Remember the make the address align to
 // the page size.
 //
 void show_map(uint32_t begin, uint32_t end) {
-	uint32_t pgbase = (UVPT & 0xffc00000) | ((UVPT & 0xffc00000) >> 10);
-	uint32_t ptbase = (UVPT & 0xffc00000) | ((begin & 0xffc00000) >> 10);
   begin = begin / PGSIZE * PGSIZE;
 	end = ROUNDUP(end, PGSIZE);
 	while (begin < end) {
-		pde_t *pde = (pde_t *)pgbase;
-		// If page directory doesn't exitst
-		if (!(pde[PDX(begin)] & PTE_P)) {
+		int flag = 0;
+		pte_t *pte = getpte(begin, &flag);
+		uint32_t pte_info = *pte;
+		if (flag == 1) {
 			cprintf("0x%08x-0x%08x no mapping\n", begin, MAX(begin + PTSIZE, end));
 			begin += PTSIZE;
+			continue;
+		} else if (pte_info == 2) {
+			cprintf("0x%08x-0x%08x no mapping\n", begin, MAX(begin + PGSIZE, end));
+			begin += PGSIZE;
+			continue;
+		} else if (pte_info & PTE_PS) {
+			cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x br", begin, begin + PTSIZE,
+		PTE_ADDR(pte_info), PTE_ADDR(pte_info) + PTSIZE);
+			begin += PTSIZE;
 		} else {
-			pde += PDX(begin);
-			pte_t *pte = NULL;
-			uint32_t info;
-			// If 2MB page
-			if (*pde & PTE_PS) {
-				cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x br", begin, begin + PTSIZE,
-				PTE_ADDR(*pde), PTE_ADDR(*pde+ PGSIZE));
-				begin += PTSIZE;
-				info = (uint32_t)*pde;
-			} else {// If 4KB page, update pte
-				pte = (pte_t *)ptbase;
-				if (!(pte[PTX(begin)] & PTE_P)) {
-					begin += PGSIZE;
-					continue;
-				} else {
-					cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x -r", begin, begin + PGSIZE,
-				PTE_ADDR(pte[PTX(begin)]), PTE_ADDR(pte[PTX(begin)] + PGSIZE));
-					begin += PGSIZE;
-					pte += PTX(begin);
-					info = *pte;
-				}
-			}
-			if (info & PTE_U) cprintf("u");
-			else cprintf("-");
-			if (info & PTE_W) cprintf("w\n");
-			else cprintf("-\n");
+			cprintf("0x%08x-0x%08x maps to 0x%08x-0x%08x -r", begin, begin + PGSIZE,
+		PTE_ADDR(pte_info), PTE_ADDR(pte_info) + PGSIZE);
+			begin += PGSIZE;
 		}
+		if (pte_info & PTE_U) cprintf("u");
+		else cprintf("-");
+		if (pte_info & PTE_W) cprintf("w");
+		else cprintf("-");
+		if (pte_info & PTE_PWT) cprintf("t");
+		else cprintf("-");
+		if (pte_info & PTE_PCD) cprintf("c");
+		else cprintf("-");
+		if (pte_info & PTE_A) cprintf("a");
+		else cprintf("-");
+		if (pte_info & PTE_D) cprintf("d");
+		else cprintf("-");
+		if (pte_info & PTE_G) cprintf("g\n");
+		else cprintf("-\n");
 	}
+}
+
+int page_chmod(int perm, uint32_t addr) {
+	addr = addr / PGSIZE * PGSIZE;
+	pte_t *pte = pgdir_walk(kern_pgdir, (const void *)addr, 0);
+	if (!pte)
+		return 0;
+
+	uint32_t res = PTE_ADDR(*pte) | perm;
+	*pte = res;
+	return 1;
 }
 
 // --------------------------------------------------------------

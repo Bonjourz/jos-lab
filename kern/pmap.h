@@ -62,6 +62,7 @@ void	page_decref(struct Page *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
 void  show_map(uint32_t begin, uint32_t end);
+int  page_chmod(int perm, uint32_t addr);
 
 static inline physaddr_t
 page2pa(struct Page *pp)
