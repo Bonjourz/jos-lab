@@ -229,6 +229,7 @@ int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
 		}
 		cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
 	}
+	
 	cprintf("\n");
 	return 0;
 	error:
