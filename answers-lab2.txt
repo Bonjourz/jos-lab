@@ -1,0 +1,159 @@
+Answer of lab2
+
+# Exercise 1:
+
+In the function of page_init(), I allocate a number
+of "pages"(struct Page) used to store the page 
+information, and initialize them with '0'.
+
+boot_alloc(): 
+
+The implement is quite simple. First check whether the arg n
+is equal to zero. If so, only return the address of next free memory, else
+alloc corresponding memory(notice that the size should be aligned to the 
+PGSIZE), and update the "nextfree" variable.
+
+
+page_init(): 
+
+The function is used to state the which page can be allocated 
+and which page have been used. If the page can be allocated, it 
+should be added to the variable "page_free_list" and its pp_link 
+should point to the structure of pages of next free pages. If the 
+page has been used, the pp_ref should be set to zero and pp_lind 
+should be set to NULL.
+
+
+page_alloc():
+
+First check the variable "page_free_list". If that is NULL, that 
+means there is no free page to use, and should return NULL value. 
+Otherwise, select the head of "page_free_list" as the return value, 
+and update the variable "page_free_list" to remove the correspongding 
+page. If the "alloc_flag" is set to 1, initialize the page with "0".
+
+page_free():
+
+In my implementation, I check whether the "pp_ref" is equal to zero. 
+This function should add the pp to the variable "page_free_list".
+
+# Question 1:
+
+All the address appeared in the code should be virtual address. So the 
+type is 'uintptr_t'.
+
+#Exercise 4:
+
+pgdir_walk():
+
+The function return the corresponding PTE according to the given virtual 
+address. If the create is equal to zero, it only returns. Otherwise, if 
+the page storing pte doesn't exist, create a page, and return the
+corresponding pte. Notice the retrieved pte should be physical address, 
+so in this function, it should be transformed to the virtual address.
+
+
+boot_map_region():
+
+Use pgdir_walk() to get the pte and fill it with virtual address.
+
+
+page_lookup():
+
+Return the page mapped at virtual address 'va'.
+
+
+page_remove():
+
+Unbonding the page to the virtual address. The ref_cnt of the page should
+be decreased. If the ref_cnt gets to '0', it should be added to the
+'page_free_list'.
+
+
+page_insert():
+
+The implementation of this function can be quite confusing.
+First, get the corresponding pte, and fill it with the virtual address.
+Then increase the 'pp_cnt'. And use the pageremove(). You may be
+doubtful with that why increase the 'pp_cnt' and remove the virtual
+address. Here are two possible case:
+
+1. If the page corresponding to the virtual address is the same as the
+the 'struct Page *pp', the 'pp_cnt' should keep the same. And the 
+implementation of increase and remove can achieve this.
+
+2. Otherwise, you should unbond the link between virtual address and
+the original 'structure of Page', also the impelmentation can achieve this.
+
+
+# Question 2:
+
+Entry	Base Virtual Address	  Points to (logically):
+------------------------------------------------------
+1023	    0xffc00000	         Page table for top 4MB of phys memory
+.
+.	
+960         0xf0000000           Page table for bottom 4MB of phys memory
+959         0xefc00000           No mapping
+958         0xefb00000           Kernel stack
+957         0xef400000           UVPT(page directory entry)
+956         0xef000000           UPAGES(page arrays)
+.
+.	
+0	        0x00000000           No mapping
+
+
+# Question 3:
+
+In the procedure of address translation, the MMU will check the privilege bit
+in the pde and pte. If the user tries to access the kernel memory, the computer
+will dectect it and it will cause error.
+
+
+# Question 4:
+
+The npages is 0x40ff, and the size of page is 0x1000. So the memory of operating
+system can support is nearly 64MB.
+
+# Question 5:
+
+PD: 4KB
+PT: 64KB
+structure of page: 128KB 
+
+# Question 6:
+
+In kern/entrypgdir.c, we map the 4MB memory above the kernel base to the [0, 4MB],
+so there is no problem when we run the eip above the kernel base.
+
+# Exercise 6:
+
+The implemtation is quite similar to the boot_map_region(). You can see the source
+code for more details.
+
+Challenge 2:
+
+- Display the mappings infomation:
+
+For this part, I implement a function called "mon_showmapping()". It first gets the
+begin address and end address from the user, and check whether them are vaild 
+input. If they are all valid, pass them to the fuction "show_map()" in kern/pmap.c.
+It will use "pgdir_walk()" to get the pte. Here, "pgdir_walk()" can detect whether
+the page is large page(2MB). Then output the information to the screen.
+
+- Set, clear, or change the permissions
+
+For this part, I implement a function called "mon_pagechmod()". It first gets the
+target address and privilege infomation. Then check whether the address is valid,
+and use "pgdir_walk()" to get the pte, and change the content of pte. Note that
+this function cannot change the normal page into large page, you can achieve this
+by removing corresponding page and then mapping it.
+
+- Dump the contents of a range of memory
+
+For this part, I implement a function called "mon_memdump()". It first gets the
+begin and end address and p/v options. Then it reads the options from the user. 
+'p' indicates that the address is physical address, otherwise 'v' indicates 
+virtual. When the address is virtual, it directly output the content using the
+address. When phsical, it used the address plus kernel base.
+

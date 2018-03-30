@@ -165,6 +165,11 @@ int mon_showmapping(int argc, char **argv, struct Trapframe *tf) {
 	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
 		goto error;
 
+	if (begin > end) {
+		cprintf("The begin addr should be smaller than end addr\n");
+		return 0;
+	}
+	
     show_map(begin, end);
 	return 0;
 
@@ -214,26 +219,41 @@ error:
 }
 
 int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
-	if (argc < 3)
+	if (argc < 4)
 		goto error;
 
 	uint32_t begin = 0, end = 0, i, count = 0;
 	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
 		goto error;
 	
+	if (begin > end) {
+		cprintf("The begin addr should be smaller than end addr\n");
+		return 0;
+	}
+
+	int kind;
+	if (!strncmp("v", argv[3], 1))
+		kind = 0;
+	else if (!strncmp("p", argv[3], 1))
+		kind = 1;
+	else goto error;
+
 	cprintf("0x%08x: ", begin);
 	for (i = begin; i < end; i++, count++) {
 		if (count == 10) {
 			cprintf("\n0x%08x: ", begin + i);
 			count = 0;
 		}
-		cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
+		if (!kind)
+			cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
+		else
+			cprintf("%02x ", ((uint32_t)*(char *)(i + KERNBASE) & 0xff));
 	}
 	
 	cprintf("\n");
 	return 0;
 	error:
-		cprintf("Usage: memdump <begin addr> <end addr>\n");
+		cprintf("Usage: memdump <begin addr> <end addr> <option>\n");
 		return 0;
 }
 
