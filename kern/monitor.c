@@ -14,6 +14,8 @@
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+extern pde_t *kern_pgdir;
+
 static int runcmd(char *buf, struct Trapframe *tf);
 
 struct Command {
@@ -231,12 +233,26 @@ int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
 		return 0;
 	}
 
-	int kind;
-	if (!strncmp("v", argv[3], 1))
-		kind = 0;
-	else if (!strncmp("p", argv[3], 1))
-		kind = 1;
+	if (!strncmp("v", argv[3], 1)); // Do nothing
+	else if (!strncmp("p", argv[3], 1)) {
+		if (end > 0x10000000) {
+			cprintf("The address yo input excess the 2 ^ 32!\n");
+			return 0;
+		}
+		begin += KERNBASE;
+		end += KERNBASE;
+	}
 	else goto error;
+
+	/* Check whether the addr is valid */
+	
+	for (i = ROUNDDOWN(begin, PGSIZE); i < end; i+= PGSIZE) {
+		if (!pgdir_walk(kern_pgdir, (const void *)i, 0)) {
+			cprintf("The address is invlid!\n");
+			return 0;
+		}
+	}
+
 
 	cprintf("0x%08x: ", begin);
 	for (i = begin; i < end; i++, count++) {
@@ -244,10 +260,7 @@ int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
 			cprintf("\n0x%08x: ", begin + i);
 			count = 0;
 		}
-		if (!kind)
-			cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
-		else
-			cprintf("%02x ", ((uint32_t)*(char *)(i + KERNBASE) & 0xff));
+		cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
 	}
 	
 	cprintf("\n");
