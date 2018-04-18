@@ -66,7 +66,7 @@ void ring0_call(void (*fun_ptr)(void)) {
 	gdt_bk = gdt[GD_UD >> 3];
 	fun = fun_ptr;
 	SETCALLGATE(gdt[GD_UD >> 3], GD_KT, wrapper_func, 3);
-	__asm __volatile("lcall %0, $0" : : "i"(GD_UD));
+	__asm __volatile("lcall $0x20, $0");
 }
 
 void
