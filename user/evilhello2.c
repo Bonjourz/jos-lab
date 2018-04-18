@@ -33,6 +33,15 @@ sgdt(struct Pseudodesc* gdtd)
 	__asm __volatile("sgdt %0" :  "=m" (*gdtd));
 }
 
+void (*fun)(void);
+struct Gatedesc *gdt, gdt_bk;
+void wrapper_func() {
+	fun();
+	gdt[GD_UD >> 3] = gdt_bk;
+	__asm __volatile("leave");
+	__asm __volatile("lret");
+}
+
 // Invoke a given function pointer with ring0 privilege, then return to ring3
 void ring0_call(void (*fun_ptr)(void)) {
     // Here's some hints on how to achieve this.
@@ -49,6 +58,15 @@ void ring0_call(void (*fun_ptr)(void)) {
     //        file if necessary.
 
     // Lab3 : Your Code Here
+	struct Pseudodesc gdtd;
+	sgdt(&gdtd);
+	uint32_t start = sys_sbrk(0);
+	sys_map_kernel_page((void *)ROUNDDOWN(gdtd.pd_base, PGSIZE), (void *)start);
+	gdt = (struct Gatedesc *)(PGOFF(gdtd.pd_base) + start);
+	gdt_bk = gdt[GD_UD >> 3];
+	fun = fun_ptr;
+	SETCALLGATE(gdt[GD_UD >> 3], GD_KT, wrapper_func, 3);
+	__asm __volatile("lcall %0, $0" : : "i"(GD_UD));
 }
 
 void

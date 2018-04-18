@@ -3,6 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/x86.h>
 
 #include <kern/monitor.h>
 #include <kern/console.h>
@@ -11,6 +12,13 @@
 #include <kern/env.h>
 #include <kern/trap.h>
 
+extern void sysenter_handler();
+
+void enable_sysenter(void) {
+	wrmsr(0x174, GD_KT, 0);
+	wrmsr(0x175, KSTACKTOP, 0);
+	wrmsr(0x176, sysenter_handler, 0);
+}
 
 void
 i386_init(void)
@@ -40,12 +48,15 @@ i386_init(void)
 	env_init();
 	trap_init();
 
+	// Lab3 init the sysenter
+	enable_sysenter();
+
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-	ENV_CREATE(user_hello, ENV_TYPE_USER);
+	ENV_CREATE(user_evilhello2, ENV_TYPE_USER);
 #endif // TEST*
 
 	// We only have one user environment for now, so just run it.

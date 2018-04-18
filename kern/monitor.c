@@ -34,7 +34,10 @@ static struct Command commands[] = {
 	{ "time", "Get the CPU cycles", mon_time },
 	{ "showmappings", "Show the info of memory map", mon_showmapping },
 	{ "pagechmod", "Change the mode of the page", mon_pagechmod }, 
-	{ "memdump", "Dump the content of memory", mon_memdump }
+	{ "memdump", "Dump the content of memory", mon_memdump },
+	{"c", "Continue execution from the current location", mon_c },
+	{"si", "Executing the code instruction by instruction", mon_si },
+	{"x", "Display the memory", mon_x }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -88,7 +91,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 			ebp[4], ebp[5], ebp[6]);
 		struct Eipdebuginfo info;
 		debuginfo_eip(ebp[1], &info);
-		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line,
+		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line - 1,
 		info.eip_fn_namelen ,info.eip_fn_name, ebp[1] - info.eip_fn_addr);
 
 		ebp = (uint32_t *)ebp[0];
@@ -269,6 +272,48 @@ int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
 	return 0;
 	error:
 		cprintf("Usage: memdump <begin addr> <end addr> <option>\n");
+		return 0;
+}
+
+int mon_c(int argc, char **argv, struct Trapframe *tf) {
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+	}
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int mon_si(int argc, char **argv, struct Trapframe *tf) {
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+
+	}
+	struct Eipdebuginfo info;
+		debuginfo_eip(tf->tf_eip, &info);
+		cprintf("tf_eip=%08x\n", tf->tf_eip);
+		cprintf("%s:%d: %.*s+%d\n", info.eip_file, info.eip_line,
+		info.eip_fn_namelen ,info.eip_fn_name, tf->tf_eip - info.eip_fn_addr);
+	tf->tf_eflags |= FL_TF;;
+	return -1;
+}
+
+int mon_x(int argc, char **argv, struct Trapframe *tf) {
+	// To Do: Need to check whether the address is valid
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+	}
+
+	uint32_t addr;
+	if (!parse(argv[1], &addr))
+		goto error;
+	cprintf("%d\n", ((uint32_t)*(char *)addr & 0xff));
+	 	
+	return 0;
+	error:
+		cprintf("The input is not valid!\n");
 		return 0;
 }
 
