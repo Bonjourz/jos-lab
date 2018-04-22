@@ -3,6 +3,7 @@
 #include <inc/stdio.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/x86.h>
 
 #include <kern/monitor.h>
 #include <kern/console.h>
@@ -44,6 +45,14 @@ void spinlock_test()
 	unlock_kernel();
 }
 
+extern void sysenter_handler();
+
+void enable_sysenter(void) {
+	wrmsr(0x174, GD_KT, 0);
+	wrmsr(0x175, KSTACKTOP, 0);
+	wrmsr(0x176, sysenter_handler, 0);
+}
+
 void
 i386_init(void)
 {
@@ -72,6 +81,7 @@ i386_init(void)
 	env_init();
 	trap_init();
 
+<<<<<<< HEAD
 	// Lab 4 multiprocessor initialization functions
 	mp_init();
 	lapic_init();
@@ -95,13 +105,21 @@ i386_init(void)
 	int i;
 	for (i = 0; i < NCPU; i++)
 		ENV_CREATE(user_idle, ENV_TYPE_IDLE);
+=======
+	// Lab3 init the sysenter
+	enable_sysenter();
+>>>>>>> lab3
 
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
+<<<<<<< HEAD
 	ENV_CREATE(user_primes, ENV_TYPE_USER);
+=======
+	ENV_CREATE(user_evilhello2, ENV_TYPE_USER);
+>>>>>>> lab3
 #endif // TEST*
 
 	// Schedule and run the first user environment!

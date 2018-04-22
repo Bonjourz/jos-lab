@@ -20,9 +20,9 @@ sys_cputs(const char *s, size_t len)
 {
 	// Check that the user has permission to read memory [s, s+len).
 	// Destroy the environment if not.
-
+	
 	// LAB 3: Your code here.
-
+	user_mem_assert(curenv, (const void *)s, len, 0);
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
 }
@@ -278,7 +278,26 @@ static int
 sys_sbrk(uint32_t inc)
 {
 	// LAB3: your code sbrk here...
-	return 0;
+	struct Env *env = curenv;
+	inc = ROUNDUP(inc, PGSIZE);
+	int i;
+	for (i = 0; i < inc; i += PGSIZE) {
+		if (env->heap_top == env->stack_bottom) {
+			cprintf("sys_brk: Cannot extend heap!\n");
+			return env->heap_top;
+		}
+
+		struct Page* page = page_alloc(0);
+		if (!page) {
+			cprintf("sys_brk: out of memory!\n");
+			return env->heap_top;
+		}
+		page_insert(env->env_pgdir, page, (void *)env->heap_top, PTE_P | PTE_W | PTE_U);
+
+		env->heap_top += PGSIZE;
+	}
+
+	return env->heap_top;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -288,7 +307,31 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
-
-	panic("syscall not implemented");
+	int res = 0;
+	switch (syscallno) {
+		case SYS_cputs: {
+			sys_cputs((const char *)a1, a2);
+			break;
+		} case SYS_cgetc: {
+			res = sys_cgetc();
+			break;
+		} case SYS_getenvid: {
+			res = sys_getenvid();
+			break;
+		}
+		case SYS_env_destroy: {
+			res = sys_env_destroy((envid_t) a1);
+			break;
+		}
+		case SYS_map_kernel_page: {
+			res = sys_map_kernel_page((void *)a1, (void *)a2);
+			break;
+		} case SYS_sbrk: {
+			res = sys_sbrk(a1);
+			break;
+		}
+		res = -E_INVAL;
+	}
+	return res; 
 }
 

@@ -17,3 +17,6 @@
 /sol?/
 /conf/lab.mk
 cscope.out
+*.pdf
+*.tar.gz
+.vscode/*
