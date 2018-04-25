@@ -218,7 +218,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region_large(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
+	boot_map_region(kern_pgdir, KERNBASE, IOMEMBASE - KERNBASE, 0, PTE_W | PTE_P);
 
 	// Initialize the SMP-related parts of the memory map
 	mem_init_mp();
@@ -261,7 +261,7 @@ mem_init_mp(void)
 {
 	// Create a direct mapping at the top of virtual address space starting
 	// at IOMEMBASE for accessing the LAPIC unit using memory-mapped I/O.
-	boot_map_region(kern_pgdir, IOMEMBASE, -IOMEMBASE, IOMEM_PADDR, PTE_W);
+	boot_map_region(kern_pgdir, IOMEMBASE, -IOMEMBASE, IOMEM_PADDR, PTE_W | PTE_P);
 
 	// Map per-CPU stacks starting at KSTACKTOP, for up to 'NCPU' CPUs.
 	//
@@ -279,6 +279,11 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+	int i;
+	for (i = 0; i < NCPU; i++)
+		boot_map_region(kern_pgdir, KSTACKTOP - i * (KSTKSIZE + KSTKGAP) - KSTKSIZE, 
+		KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W | PTE_P);
+
 
 }
 
@@ -320,6 +325,10 @@ page_init(void)
 	// free pages!
 	size_t i;
 	for (i = 0; i < npages; i++) {
+		if (page2pa(&pages[i]) == MPENTRY_PADDR) {
+			pages[i].pp_ref = 1;
+			continue;
+		}
 		if ((i > 0 && i < npages_basemem) ||
 		 (i >= (size_t)PADDR(boot_alloc(0)) / PGSIZE)) {
 			 pages[i].pp_link = page_free_list;
@@ -420,10 +429,6 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	uint32_t pdx = PDX(va);
-	if (pgdir[pdx] & PTE_P & PTE_PS) {
-		//pgdir = KADDR(pgdir);
-		return &pgdir[pdx];
-	}
 
 	if (!(pgdir[pdx] & PTE_P) && !create)
 		return NULL;

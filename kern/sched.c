@@ -29,7 +29,7 @@ sched_yield(void)
 	// below to switch to this CPU's idle environment.
 
 	// LAB 4: Your code here.
-
+	
 	// For debugging and testing purposes, if there are no
 	// runnable environments other than the idle environments,
 	// drop into the kernel monitor.

@@ -35,9 +35,9 @@ static struct Command commands[] = {
 	{ "showmappings", "Show the info of memory map", mon_showmapping },
 	{ "pagechmod", "Change the mode of the page", mon_pagechmod }, 
 	{ "memdump", "Dump the content of memory", mon_memdump },
-	{"c", "Continue execution from the current location", mon_c },
-	{"si", "Executing the code instruction by instruction", mon_si },
-	{"x", "Display the memory", mon_x }
+	{ "c", "Continue execution from the current location", mon_c },
+	{ "si", "Executing the code instruction by instruction", mon_si },
+	{ "x", "Display the memory", mon_x }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
