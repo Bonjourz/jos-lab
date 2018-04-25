@@ -11,6 +11,7 @@
 #include <kern/syscall.h>
 #include <kern/console.h>
 #include <kern/sched.h>
+#include <kern/spinlock.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -95,7 +96,16 @@ sys_exofork(void)
 	// will appear to return 0.
 
 	// LAB 4: Your code here.
-	panic("sys_exofork not implemented");
+	struct Env *env;
+	cprintf("arrive here1\n");
+	int r = env_alloc(&env, ENVX(curenv->env_id));
+	cprintf("arrive here\n");
+	if (r < 0)
+		return r;
+	
+	env->env_status = ENV_NOT_RUNNABLE;
+	env->env_tf.tf_regs.reg_eax = 0;
+	return env->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -302,11 +312,14 @@ sys_sbrk(uint32_t inc)
 
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
-syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
+syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
+	struct Trapframe* tf)
 {
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
+	lock_kernel();
+	curenv->env_tf = *tf;
 	int res = 0;
 	switch (syscallno) {
 		case SYS_cputs: {
@@ -318,16 +331,29 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		} case SYS_getenvid: {
 			res = sys_getenvid();
 			break;
-		}
-		case SYS_env_destroy: {
+		} case SYS_env_destroy: {
 			res = sys_env_destroy((envid_t) a1);
 			break;
-		}
-		case SYS_map_kernel_page: {
+		} case SYS_map_kernel_page: {
 			res = sys_map_kernel_page((void *)a1, (void *)a2);
+			break;
+		} case SYS_page_alloc: {
+			res = sys_page_alloc(a1, (void *)a2, a3);
+			break;
+		} case SYS_page_map: {
+			res = sys_page_map(a1, (void *)a2, a3, (void *)a4, a5);
+			break;
+		} case SYS_page_unmap: {
+			res = sys_page_unmap(a1, (void *)a2);
 			break;
 		} case SYS_sbrk: {
 			res = sys_sbrk(a1);
+			break;
+		} case SYS_exofork: {
+			res = sys_exofork();
+			break;
+		} case SYS_env_set_status: {
+			res = sys_env_set_status(a1, a2);
 			break;
 		} case SYS_yield: {
 			sys_yield();
@@ -335,6 +361,7 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		}
 		res = -E_INVAL;
 	}
+	unlock_kernel();
 	return res; 
 }
 

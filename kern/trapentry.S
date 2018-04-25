@@ -76,7 +76,22 @@ TRAPHANDLER_NOEC(simderr_entry, T_SIMDERR)
 sysenter_handler:
 /*
  * Lab 3: Your code here for system call handling
- */
+ */	
+	pushw $0
+	pushw $GD_UD | 3
+	pushl %ebp
+	pushfl
+	pushw $0
+	pushw $GD_UT | 3
+	pushl %esi
+	pushl $0
+	pushl $0
+	push %ds
+	push %es
+	pushal
+
+	pushl %esp
+	pushl %esp
 	pushl %edi
 	pushl %ebx
 	pushl %ecx

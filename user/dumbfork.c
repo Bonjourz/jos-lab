@@ -11,7 +11,6 @@ umain(int argc, char **argv)
 {
 	envid_t who;
 	int i;
-
 	// fork a child process
 	who = dumbfork();
 

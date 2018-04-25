@@ -381,9 +381,9 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
-	lcr3(PADDR(kern_pgdir)); // TO DO
 	region_alloc(e, (void *)(USTACKTOP - PGSIZE), PGSIZE);
 	e->stack_bottom = USTACKTOP - PGSIZE;
+	lcr3(PADDR(kern_pgdir)); // TO DO
 }
 
 //
