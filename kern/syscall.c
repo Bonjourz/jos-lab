@@ -97,13 +97,14 @@ sys_exofork(void)
 
 	// LAB 4: Your code here.
 	struct Env *env;
-	cprintf("arrive here1\n");
-	int r = env_alloc(&env, ENVX(curenv->env_id));
-	cprintf("arrive here\n");
+	int r = env_alloc(&env, curenv->env_id);
+	cprintf("create %d\n", ENVX(env->env_id));
 	if (r < 0)
 		return r;
 	
 	env->env_status = ENV_NOT_RUNNABLE;
+	env->env_type = ENV_TYPE_USER;
+	env->env_tf = curenv->env_tf;
 	env->env_tf.tf_regs.reg_eax = 0;
 	return env->env_id;
 }
@@ -125,7 +126,16 @@ sys_env_set_status(envid_t envid, int status)
 	// envid's status.
 
 	// LAB 4: Your code here.
-	panic("sys_env_set_status not implemented");
+	struct Env *env;
+	int r = envid2env(envid, &env, 1);
+	if (r < 0)
+		return r;
+
+	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
+  		return -E_INVAL;
+
+	env->env_status = status;
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -170,7 +180,35 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   allocated!
 
 	// LAB 4: Your code here.
-	panic("sys_page_alloc not implemented");
+	struct Env *env;
+	int r = envid2env(envid, &env, 1);
+	if (r < 0)
+		return r;
+
+	/* Check va */
+	if (ROUNDDOWN((uint32_t)va, PGSIZE) != (uint32_t)va || 
+		(uint32_t)va >= UTOP)
+		return -E_INVAL;
+
+	/* Check perm */
+	if ((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P))
+		return -E_INVAL;
+
+
+	if ((perm & ~(PTE_U | PTE_W | PTE_P | PTE_AVAIL | PTE_W)) != 0)
+		return -E_INVAL;
+
+	struct Page* page = page_alloc(0);
+	if (!page)
+		return -E_NO_MEM;
+
+	r = page_insert(env->env_pgdir, page, va, perm);
+	if (r < 0) {
+		page_free(page);
+		return r;
+	}
+	
+	return 0;
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -201,7 +239,34 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   check the current permissions on the page.
 
 	// LAB 4: Your code here.
-	panic("sys_page_map not implemented");
+	struct Env *src_env, *dst_env;
+	if (envid2env(srcenvid, &src_env, 1) < 0 ||
+		envid2env(dstenvid, &dst_env, 1) < 0)
+		return -E_BAD_ENV;
+
+	if ((uint32_t)srcva >= UTOP || (uint32_t)dstva >= UTOP ||
+		(uint32_t)srcva != ROUNDDOWN((uint32_t)srcva, PGSIZE) ||
+		(uint32_t)dstva != ROUNDDOWN((uint32_t)dstva, PGSIZE))
+		return -E_INVAL;
+
+	pte_t *pte;
+	struct Page *pg = page_lookup(src_env->env_pgdir, srcva, &pte);
+	if (!pte)
+		return -E_INVAL;
+		
+	if ((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P))
+		return -E_INVAL;
+	
+	if ((perm & ~(PTE_U | PTE_W | PTE_P | PTE_AVAIL | PTE_W)) != 0)
+		return -E_INVAL;
+	
+	if (perm & PTE_W) {
+		if ((*pte & PTE_W) == 0)
+			return -E_INVAL;
+	}
+
+ 	page_insert(dst_env->env_pgdir, pg, dstva, perm);
+	return 0;
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -217,7 +282,17 @@ sys_page_unmap(envid_t envid, void *va)
 	// Hint: This function is a wrapper around page_remove().
 
 	// LAB 4: Your code here.
-	panic("sys_page_unmap not implemented");
+	struct Env *env;
+	int r = envid2env(envid, &env, 1);
+	if (r < 0)
+		return r;
+	
+	/* Check va */
+	if (ROUNDDOWN((uint32_t)va, PGSIZE) != (uint32_t)va || 
+		(uint32_t)va >= UTOP)
+		return -E_INVAL;
+	page_remove(env->env_pgdir, va);
+	return 0;
 }
 
 // Try to send 'value' to the target env 'envid'.
@@ -311,14 +386,13 @@ sys_sbrk(uint32_t inc)
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
-int32_t
+static int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
 	struct Trapframe* tf)
 {
 	// Call the function corresponding to the 'syscallno' parameter.
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
-	lock_kernel();
 	curenv->env_tf = *tf;
 	int res = 0;
 	switch (syscallno) {
@@ -361,7 +435,18 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		}
 		res = -E_INVAL;
 	}
-	unlock_kernel();
 	return res; 
 }
 
+int32_t locked_syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
+    struct Trapframe *tf) {
+		return syscall(syscallno, a1, a2, a3, a4, a5, tf);
+}
+
+int32_t unlocked_syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
+    struct Trapframe *tf) {
+		lock_kernel();
+		int res = syscall(syscallno, a1, a2, a3, a4, a5, tf);
+		unlock_kernel();
+		return res;
+}

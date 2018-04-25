@@ -32,9 +32,9 @@ sched_yield(void)
 	int num = curenv ? curenv - &envs[0] : 0;
 	for (i = num; i < NENV + num; i++) {
 		if (envs[i % NENV].env_type != ENV_TYPE_IDLE &&
-			(envs[i % NENV].env_status == ENV_RUNNABLE)) {
+			(envs[i % NENV].env_status == ENV_RUNNABLE))
 			env_run(&envs[i % NENV]);
-		}
+
 	}
 	if (curenv != NULL && curenv->env_type != ENV_TYPE_IDLE 
 	&& curenv->env_status == ENV_RUNNING)

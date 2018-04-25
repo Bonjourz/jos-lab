@@ -67,6 +67,7 @@ TRAPHANDLER_NOEC(fperr_entry, T_FPERR)
 TRAPHANDLER_NOEC(align_entry, T_ALIGN)
 TRAPHANDLER_NOEC(mchk_entry, T_MCHK)
 TRAPHANDLER_NOEC(simderr_entry, T_SIMDERR)
+TRAPHANDLER_NOEC(syscall_entry, T_SYSCALL)
 
 
 
@@ -97,7 +98,7 @@ sysenter_handler:
 	pushl %ecx
 	pushl %edx
 	pushl %eax
-	call syscall
+	call unlocked_syscall
 	movl %esi, %edx
 	movl %ebp, %ecx
 	sysexit

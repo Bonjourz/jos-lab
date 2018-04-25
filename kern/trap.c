@@ -85,6 +85,7 @@ extern void fperr_entry();
 extern void align_entry();
 extern void mchk_entry();
 extern void simderr_entry();
+extern void syscall_entry();
 
 /*
 extern void irq_offset_entry();
@@ -93,8 +94,6 @@ extern void irq_serial_entry();
 extern void irq_spurious_entry();
 extern void irq_ide_entry();
 extern void irq_error_entry();
-
-extern void syscall_entry();
 */
 
 void
@@ -124,6 +123,8 @@ trap_init(void)
 	SETGATE(idt[T_MCHK], 0, GD_KT, mchk_entry, 0);
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, simderr_entry, 0);
 
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, syscall_entry, 3);
+
 	/*
 	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_offset_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, irq_kbd_entry, 0);
@@ -133,7 +134,6 @@ trap_init(void)
 	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, irq_error_entry, 0);
 
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, syscall_entry, 3);
-	SETGATE(idt[T_SYSCALL], 0, GD_KT, T_SYSCALL, 0);
 	*/
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -253,6 +253,12 @@ trap_dispatch(struct Trapframe *tf)
 			return;
 		case T_PGFLT:
 			page_fault_handler(tf);
+			return;
+		case T_SYSCALL:
+			tf->tf_regs.reg_eax = locked_syscall(tf->tf_regs.reg_eax,
+				tf->tf_regs.reg_ebx, tf->tf_regs.reg_ecx,
+				tf->tf_regs.reg_edx, tf->tf_regs.reg_esi,
+				tf->tf_regs.reg_edi, tf);
 			return;
 	}
 	// Handle spurious interrupts
