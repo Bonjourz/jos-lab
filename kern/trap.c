@@ -353,7 +353,7 @@ page_fault_handler(struct Trapframe *tf)
 	// LAB 3: Your code here.
 	if (tf->tf_cs == GD_KT) {
 		print_trapframe(tf);
-		panic("The page fault happens in kernel-mode\nfault va %08x!\n", 
+		panic("The page fault happens in kernel-mode\nfault va %08x! pte %08x\n", 
 		fault_va);
 	}
 
@@ -388,8 +388,29 @@ page_fault_handler(struct Trapframe *tf)
 	//   To change what the user environment runs, modify 'curenv->env_tf'
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
-	// LAB 4: Your code here.
+	// LAB 4: Your code here
+	if (curenv->env_pgfault_upcall) {
+		struct UTrapframe* utf = NULL;
+		if (tf->tf_esp >= UXSTACKTOP - PGSIZE && tf->tf_esp <= UXSTACKTOP - 1)
+			utf = (struct UTrapframe *)((char *)tf->tf_esp - 
+				sizeof(struct UTrapframe) - sizeof(uint32_t));
+		else
+			utf = (struct UTrapframe *)(UXSTACKTOP - sizeof(struct UTrapframe));
+		
+		user_mem_assert(curenv, (const void *)utf, sizeof(struct UTrapframe), 
+			PTE_W | PTE_P);
+		utf->utf_fault_va = fault_va;
+		utf->utf_err = tf->tf_err;
+		utf->utf_regs = tf->tf_regs;
+		utf->utf_eip = tf->tf_eip;
+		utf->utf_eflags = tf->tf_eflags;
+		utf->utf_esp = tf->tf_esp;
 
+		// The page fault doesn't happen in the pg fault handler
+		curenv->env_tf.tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+		curenv->env_tf.tf_esp = (uint32_t)utf;
+		env_run(curenv);
+	}
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);

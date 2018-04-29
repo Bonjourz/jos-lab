@@ -98,7 +98,6 @@ sys_exofork(void)
 	// LAB 4: Your code here.
 	struct Env *env;
 	int r = env_alloc(&env, curenv->env_id);
-	cprintf("create %d\n", ENVX(env->env_id));
 	if (r < 0)
 		return r;
 	
@@ -150,7 +149,13 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
-	panic("sys_env_set_pgfault_upcall not implemented");
+	int r;
+	struct Env *e;
+	if ((r = envid2env(envid, &e, 1)) < 0)
+		return r;
+
+	e->env_pgfault_upcall = func;
+	return 0;	
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -420,17 +425,25 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		} case SYS_page_unmap: {
 			res = sys_page_unmap(a1, (void *)a2);
 			break;
-		} case SYS_sbrk: {
-			res = sys_sbrk(a1);
-			break;
-		} case SYS_exofork: {
+		}  case SYS_exofork: {
 			res = sys_exofork();
 			break;
 		} case SYS_env_set_status: {
 			res = sys_env_set_status(a1, a2);
 			break;
+		} case SYS_env_set_pgfault_upcall: {
+			res = sys_env_set_pgfault_upcall(a1, (void *)a2);
+			break;
 		} case SYS_yield: {
 			sys_yield();
+			break;
+		} case SYS_ipc_try_send: {
+			res = sys_ipc_try_send(a1, a2, (void *)a3, a4);
+			break;
+		} case SYS_ipc_recv: {
+			res = sys_ipc_recv((void *)a1);
+		} case SYS_sbrk: {
+			res = sys_sbrk(a1);
 			break;
 		}
 		res = -E_INVAL;
