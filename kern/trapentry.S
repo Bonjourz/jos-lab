@@ -67,6 +67,14 @@ TRAPHANDLER_NOEC(fperr_entry, T_FPERR)
 TRAPHANDLER_NOEC(align_entry, T_ALIGN)
 TRAPHANDLER_NOEC(mchk_entry, T_MCHK)
 TRAPHANDLER_NOEC(simderr_entry, T_SIMDERR)
+
+TRAPHANDLER_NOEC(irq_timer_entry, IRQ_OFFSET + IRQ_TIMER)
+TRAPHANDLER_NOEC(irq_kbd_entry, IRQ_OFFSET + IRQ_KBD)
+TRAPHANDLER_NOEC(irq_serial_entry, IRQ_OFFSET + IRQ_SERIAL)
+TRAPHANDLER_NOEC(irq_spurious_entry, IRQ_OFFSET + IRQ_SPURIOUS);
+TRAPHANDLER_NOEC(irq_ide_entry, IRQ_OFFSET + IRQ_IDE)
+TRAPHANDLER_NOEC(irq_error_entry, IRQ_OFFSET + IRQ_ERROR)
+
 TRAPHANDLER_NOEC(syscall_entry, T_SYSCALL)
 
 
@@ -101,6 +109,7 @@ sysenter_handler:
 	call unlocked_syscall
 	movl %esi, %edx
 	movl %ebp, %ecx
+	sti
 	sysexit
 
 

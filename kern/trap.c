@@ -87,14 +87,13 @@ extern void mchk_entry();
 extern void simderr_entry();
 extern void syscall_entry();
 
-/*
-extern void irq_offset_entry();
+
+extern void irq_timer_entry();
 extern void irq_kbd_entry();
 extern void irq_serial_entry();
 extern void irq_spurious_entry();
 extern void irq_ide_entry();
 extern void irq_error_entry();
-*/
 
 void
 trap_init(void)
@@ -125,16 +124,14 @@ trap_init(void)
 
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, syscall_entry, 3);
 
-	/*
-	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_offset_entry, 0);
+
+	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_timer_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, irq_kbd_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, irq_serial_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, irq_spurious_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, irq_ide_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, irq_error_entry, 0);
 
-	SETGATE(idt[T_SYSCALL], 0, GD_KT, syscall_entry, 3);
-	*/
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -273,6 +270,10 @@ trap_dispatch(struct Trapframe *tf)
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if (tf->tf_trapno >= IRQ_OFFSET && tf->tf_trapno < IRQ_OFFSET + 16) {
+		lapic_eoi();
+		sched_yield();
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
