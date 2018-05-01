@@ -114,7 +114,7 @@ fork(void)
 {
 	// LAB 4: Your code here.
 	set_pgfault_handler(pgfault);
-
+	
 	envid_t envid = sys_exofork();
 	if (envid < 0)
 		panic("Fork: sys_exofork: %e", envid);
@@ -129,7 +129,7 @@ fork(void)
 
 	int r;
 	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
-		panic("Fork: sys_env_set_pgfault_upcall: %e", envid);;
+		panic("Fork: sys_env_set_pgfault_upcall: %e", envid);
 
 	// We're the parent.
 	// Eagerly copy our entire address space into the child.
@@ -154,7 +154,60 @@ fork(void)
 // Challenge!
 int
 sfork(void)
-{
+{	
+	#ifdef SFORK
+	set_pgfault_handler(pgfault);
+
+	envid_t envid = sys_exofork();
+	if (envid < 0)
+		panic("Fork: sys_exofork: %e", envid);
+	if (envid == 0) {
+		// We're the child.
+		// The copied value of the global variable 'thisenv'
+		// is no longer valid (it refers to the parent!).
+		// Fix it and return 0.
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	int r;
+	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
+		panic("Fork: sys_env_set_pgfault_upcall: %e", envid);
+
+	uint32_t addr, heap_top = thisenv->heap_top;
+	for (addr = USTACKTOP - PGSIZE; addr < USTACKTOP; addr += PGSIZE) {
+		if ((vpd[PDX(addr)] & PTE_P) && (vpt[PGNUM(addr)] & PTE_P) &&
+			(vpt[PGNUM(addr)] & PTE_U)) {
+			int perm = vpt[PGNUM(addr)] & PTE_SYSCALL;
+			if ((r = sys_page_alloc(0, PFTEMP, PTE_U | PTE_P | PTE_W)) < 0)
+				return r;
+
+			memmove((void *)PFTEMP, (void *)addr, PGSIZE);
+			if ((r = sys_page_map(0, (void *)PFTEMP, envid, (void *)addr, perm | 
+				PTE_U | PTE_W)) < 0)
+				return r;
+
+			if ((r = sys_page_unmap(0, (void *)PFTEMP)) < 0)
+				return r;
+		}
+	}
+	for (addr = 0; addr < USTACKTOP - PGSIZE; addr += PGSIZE) {
+		if ((vpd[PDX(addr)] & PTE_P) && (vpt[PGNUM(addr)] & PTE_P) &&
+			(vpt[PGNUM(addr)] & PTE_U)) {
+			int perm = vpt[PGNUM(addr)] & PTE_SYSCALL;
+			if ((r = sys_page_map(0, (void *)addr, envid, (void *)addr, perm)) < 0)
+				return r;
+		}
+	}
+	if ((r = sys_page_alloc(envid, (void *)(UXSTACKTOP - PGSIZE), PTE_P | PTE_U | PTE_W)) < 0)
+		panic("Fork: sys_page_alloc: %e", r);
+
+	if ((r = sys_env_set_status(envid, ENV_RUNNABLE)) < 0)
+		panic("Fork: sys_env_set_status: %e", r);
+
+	return envid;
+	#else
 	panic("sfork not implemented");
 	return -E_INVAL;
+	#endif
 }

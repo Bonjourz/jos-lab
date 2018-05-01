@@ -86,7 +86,7 @@ i386_init(void)
 
 	// Starting non-boot CPUs
 	boot_aps();
-
+	
 #ifdef USE_TICKET_SPIN_LOCK
 	unlock_kernel();
 	spinlock_test();
@@ -105,7 +105,7 @@ i386_init(void)
 	// Touch all you want.
 	ENV_CREATE(user_pingpong, ENV_TYPE_USER);
 #endif // TEST*
-
+	
 	// Schedule and run the first user environment!
 	sched_yield();
 }
@@ -149,7 +149,7 @@ mp_main(void)
 	// We are in high EIP now, safe to switch to kern_pgdir 
 	lcr3(PADDR(kern_pgdir));
 	cprintf("SMP: CPU %d starting\n", cpunum());
-
+	
 	lapic_init();
 	env_init_percpu();
 	trap_init_percpu();

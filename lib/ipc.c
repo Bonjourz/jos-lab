@@ -27,14 +27,20 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 		pg = (void *)0xffffffff;
 
 	int r;
+	const volatile struct Env *env;
+#ifdef SFORK
+	env = &envs[ENVX(sys_getenvid())];
+#else
+	env = thisenv;
+#endif
 	if ((r = sys_ipc_recv(pg)) >= 0) {
 		if (from_env_store)
-			*from_env_store = thisenv->env_ipc_from;
+			*from_env_store = env->env_ipc_from;
 
 		if (perm_store)
-			*perm_store = thisenv->env_ipc_perm;
+			*perm_store = env->env_ipc_perm;
 
-		return thisenv->env_ipc_value;
+		return env->env_ipc_value;
 	}
 
 	if (from_env_store)

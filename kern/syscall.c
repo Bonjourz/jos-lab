@@ -377,9 +377,16 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	env->env_ipc_recving = 0;
 	env->env_ipc_from = curenv->env_id;
 	env->env_ipc_value = value;
-	env->env_ipc_perm = perm;
+	env->env_ipc_perm = 0;
 	env->env_status = ENV_RUNNABLE;
 	env->env_tf.tf_regs.reg_eax = 0;
+	
+	/* Transfer the page */
+	if (page && (uint32_t)env->env_ipc_dstva < UTOP) {
+		if ((r = page_insert(env->env_pgdir, page, env->env_ipc_dstva, perm)) < 0)
+			return r;
+		env->env_ipc_perm = perm;
+	}
 	return 0;
 }
 

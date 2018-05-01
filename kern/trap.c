@@ -90,7 +90,18 @@ extern void syscall_entry();
 
 extern void irq_timer_entry();
 extern void irq_kbd_entry();
+extern void irq_2_entry();
+extern void irq_3_entry();
 extern void irq_serial_entry();
+extern void irq_5_entry();
+extern void irq_6_entry();
+extern void irq_7_entry();
+extern void irq_8_entry();
+extern void irq_9_entry();
+extern void irq_10_entry();
+extern void irq_11_entry();
+extern void irq_12_entry();
+extern void irq_13_entry();
 extern void irq_spurious_entry();
 extern void irq_ide_entry();
 extern void irq_error_entry();
@@ -127,8 +138,18 @@ trap_init(void)
 
 	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_timer_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, irq_kbd_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 2], 0, GD_KT, irq_2_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 3], 0, GD_KT, irq_3_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, irq_serial_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 5], 0, GD_KT, irq_5_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 6], 0, GD_KT, irq_6_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, irq_spurious_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 8], 0, GD_KT, irq_8_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 9], 0, GD_KT, irq_9_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 10], 0, GD_KT, irq_10_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 11], 0, GD_KT, irq_11_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 12], 0, GD_KT, irq_12_entry, 0);
+	SETGATE(idt[IRQ_OFFSET + 13], 0, GD_KT, irq_13_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, irq_ide_entry, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, irq_error_entry, 0);
 
