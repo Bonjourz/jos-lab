@@ -174,8 +174,8 @@ sfork(void)
 	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) < 0)
 		panic("Fork: sys_env_set_pgfault_upcall: %e", envid);
 
-	uint32_t addr, heap_top = thisenv->heap_top;
-	for (addr = USTACKTOP - PGSIZE; addr < USTACKTOP; addr += PGSIZE) {
+	uint32_t addr, heap_top = thisenv->heap_top, stack_bottom = thisenv->stack_bottom;
+	for (addr = stack_bottom; addr < USTACKTOP; addr += PGSIZE) {
 		if ((vpd[PDX(addr)] & PTE_P) && (vpt[PGNUM(addr)] & PTE_P) &&
 			(vpt[PGNUM(addr)] & PTE_U)) {
 			int perm = vpt[PGNUM(addr)] & PTE_SYSCALL;
@@ -191,7 +191,7 @@ sfork(void)
 				return r;
 		}
 	}
-	for (addr = 0; addr < USTACKTOP - PGSIZE; addr += PGSIZE) {
+	for (addr = 0; addr < heap_top; addr += PGSIZE) {
 		if ((vpd[PDX(addr)] & PTE_P) && (vpt[PGNUM(addr)] & PTE_P) &&
 			(vpt[PGNUM(addr)] & PTE_U)) {
 			int perm = vpt[PGNUM(addr)] & PTE_SYSCALL;
