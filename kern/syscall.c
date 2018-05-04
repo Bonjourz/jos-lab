@@ -509,7 +509,7 @@ int32_t locked_syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3
 		return syscall(syscallno, a1, a2, a3, a4, a5, tf);
 }
 
-int32_t unlocked_syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
+int32_t unlocked_syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a5, uint32_t a4, 
     struct Trapframe *tf) {
 		lock_kernel();
 		int res = syscall(syscallno, a1, a2, a3, a4, a5, tf);

@@ -110,8 +110,11 @@ sysenter_handler:
 	pushal
 
 	pushl %esp
-	pushl %esp
 	pushl %edi
+	/* For the 5-th arg */
+	movl (%ebp), %edi
+	pushl %edi
+	
 	pushl %ebx
 	pushl %ecx
 	pushl %edx
