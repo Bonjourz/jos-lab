@@ -27,3 +27,14 @@ address to which the virtual address maps. Why can the pointer e be dereferenced
 before and after the addressing switch?
 
 因为e的地址处于内核段。所有的env都有映射。
+
+Challenge 
+
+此次lab的challenge部分实现了sfork的功能。由于lib/fork.c当中的实现很简单，根据thisenv当中的stack_bottom
+与heap_top两个变量，为子进程拷贝heap_top之下的所有映射新建heap_top之上的物理页映射，然后将相应的内容进行拷贝。
+lib/ipc.c中的ipc_recv()，注意到thisenv变量的地址处于堆上的部分，而堆上的变量是共享的，若按照原本的程序执行
+(thisenv会一直指向子程序的环境变量)。所以应该改变lib/ipc.c当中的thisenv变成一个const volatile变量，每当将要
+使用thisenv变量的时候，都自动获取相应的正确值：
+
+env = &envs[ENVX(sys_getenvid())];
+这样就可保证pingpongs当中不会产生所进程都处于NOT_RUNNABLE的状态。
