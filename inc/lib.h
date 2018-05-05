@@ -23,6 +23,8 @@
 
 #define USED(x)		(void)(x)
 
+#define SFORK
+
 // main user program
 void	umain(int argc, char **argv);
 

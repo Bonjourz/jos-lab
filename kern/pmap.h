@@ -62,6 +62,8 @@ struct Page *page_lookup(pde_t *pgdir, void *va, pte_t **pte_store);
 void	page_decref(struct Page *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
+void  show_map(uint32_t begin, uint32_t end);
+int  page_chmod(int perm, uint32_t addr);
 
 int	user_mem_check(struct Env *env, const void *va, size_t len, int perm);
 void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);

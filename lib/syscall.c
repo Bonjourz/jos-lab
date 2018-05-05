@@ -7,16 +7,25 @@ static inline int32_t
 syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
 {
 	int32_t ret;
-	asm volatile("pushl %%ecx\n\t"
+	asm volatile(
+		"pushl %%ecx\n\t"
 		 "pushl %%edx\n\t"
-	         "pushl %%ebx\n\t"
+	     "pushl %%ebx\n\t"
 		 "pushl %%esp\n\t"
 		 "pushl %%ebp\n\t"
 		 "pushl %%esi\n\t"
 		 "pushl %%edi\n\t"
 				 
                  //Lab 3: Your code here
+				"pushl %%esi\n\t"
 
+				"leal after_sysenter_label%=, %%esi\n\t"
+				"pushl %%esp\n\t"
+				"popl %%ebp\n\t"
+				"sysenter\n\t"
+				"after_sysenter_label%=: \n\t"
+
+				 "popl %%edi\n\t"	// Dumb pop
                  "popl %%edi\n\t"
                  "popl %%esi\n\t"
                  "popl %%ebp\n\t"
@@ -30,7 +39,8 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
                    "d" (a1),
                    "c" (a2),
                    "b" (a3),
-                   "D" (a4)
+                   "D" (a4),
+				   "S" (a5)
                  : "cc", "memory");
 
 
@@ -85,7 +95,8 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 int
 sys_page_map(envid_t srcenv, void *srcva, envid_t dstenv, void *dstva, int perm)
 {
-	return syscall(SYS_page_map, 1, srcenv, (uint32_t) srcva, dstenv, (uint32_t) dstva, perm);
+	return syscall(SYS_page_map, 1, srcenv, (uint32_t) srcva, 
+		dstenv, (uint32_t) dstva, (uint32_t) perm);
 }
 
 int
@@ -110,7 +121,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 
 int
 sys_env_set_pgfault_upcall(envid_t envid, void *upcall)
-{
+{	
 	return syscall(SYS_env_set_pgfault_upcall, 1, envid, (uint32_t) upcall, 0, 0, 0);
 }
 

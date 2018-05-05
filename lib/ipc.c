@@ -23,7 +23,32 @@ int32_t
 ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 {
 	// LAB 4: Your code here.
-	panic("ipc_recv not implemented");
+	if (!pg)
+		pg = (void *)0xffffffff;
+
+	int r;
+	const volatile struct Env *env;
+#ifdef SFORK
+	env = &envs[ENVX(sys_getenvid())];
+#else
+	env = thisenv;
+#endif
+	if ((r = sys_ipc_recv(pg)) >= 0) {
+		if (from_env_store)
+			*from_env_store = env->env_ipc_from;
+
+		if (perm_store)
+			*perm_store = env->env_ipc_perm;
+
+		return env->env_ipc_value;
+	}
+
+	if (from_env_store)
+		*from_env_store = 0;
+
+	if (perm_store)
+		*perm_store = 0;
+
 	return 0;
 }
 
@@ -39,7 +64,15 @@ void
 ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 {
 	// LAB 4: Your code here.
-	panic("ipc_send not implemented");
+	if (!pg)
+		pg = (void *)0xffffffff;
+
+	int r;
+	while ((r = sys_ipc_try_send(to_env, val, (void *)pg, perm)) == -E_IPC_NOT_RECV)
+		sys_yield();
+
+	if (r < 0)
+		panic("ipc_send: error %e", r);
 }
 
 // Find the first environment of the given type.  We'll use this to

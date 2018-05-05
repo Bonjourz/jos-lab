@@ -10,10 +10,15 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+
 #include <kern/trap.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
+extern pde_t *kern_pgdir;
+
+static int runcmd(char *buf, struct Trapframe *tf);
 
 struct Command {
 	const char *name;
@@ -25,6 +30,14 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Show the trace of stack", mon_backtrace },
+	{ "time", "Get the CPU cycles", mon_time },
+	{ "showmappings", "Show the info of memory map", mon_showmapping },
+	{ "pagechmod", "Change the mode of the page", mon_pagechmod }, 
+	{ "memdump", "Dump the content of memory", mon_memdump },
+	{ "c", "Continue execution from the current location", mon_c },
+	{ "si", "Executing the code instruction by instruction", mon_si },
+	{ "x", "Display the memory", mon_x }
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -62,7 +75,7 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 static uint32_t
 read_pretaddr() {
     uint32_t pretaddr;
-    __asm __volatile("leal 4(%%ebp), %0" : "=r" (pretaddr)); 
+    __asm __volatile("leal 4(%%ebp), %0" : "=r" (pretaddr));
     return pretaddr;
 }
 
@@ -70,10 +83,239 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
-    cprintf("Backtrace success\n");
+	cprintf("Stack backtrace:\n");
+	uint32_t *ebp = (uint32_t *)read_ebp();
+	while (ebp) {
+		cprintf("  eip %08x ebp %08x args %08x %08x %08x %08x %08x\n",
+			ebp[1], (uint32_t)ebp, ebp[2], ebp[3],
+			ebp[4], ebp[5], ebp[6]);
+		struct Eipdebuginfo info;
+		debuginfo_eip(ebp[1], &info);
+		cprintf("     %s:%d: %.*s+%d\n", info.eip_file, info.eip_line - 1,
+		info.eip_fn_namelen ,info.eip_fn_name, ebp[1] - info.eip_fn_addr);
+
+		ebp = (uint32_t *)ebp[0];
+
+
+	}
+	cprintf("Backtrace success\n");
 	return 0;
 }
 
+int
+mon_time(int argc, char **argv, struct Trapframe *tf) {
+	int i = 1, size = 0, MAXLEN = 1024;
+	char buf[MAXLEN];
+	char *ptr = buf;
+
+	for (; i < argc; i++) {
+		char *c = argv[i];
+		while (*c != '\0') {
+			*(ptr++) = *c;
+			c++;
+			if (size++ >= MAXLEN) {
+				cprintf("To many args!\n");
+				return 0;
+			}
+		}
+		*(ptr++) = ' ';
+	}
+	*ptr = '\0';
+	unsigned long long begin, end;
+	unsigned int eax, edx;
+	 __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+	begin = ((unsigned long long)edx << 32) | (unsigned long long)eax;
+	runcmd(buf, tf);
+	__asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+        end = ((unsigned long long)edx << 32) | (unsigned long long)eax;
+	cprintf("kerninfo cycles: %lld\n", end - begin);
+	return 0;
+}
+
+static int char2num(char *ch, uint32_t *res, const char *num_ch) {
+  if (*ch == '\0') {
+		*res = 0;
+		return 1;
+	}
+
+  uint32_t mul = char2num(ch + 1, res, num_ch);
+  /* The return value of 0 means something error */
+	if (mul < 0)
+		return -1;
+
+  char *cdx = strchr(num_ch, *ch);
+  if (cdx == 0)
+    return -1;
+
+	*res += (uint32_t)(cdx - num_ch) * mul;
+	return mul * 16;
+}
+
+static int parse(char *ch, uint32_t *res) {
+	if (strncmp("0x", ch, 2))
+		return 0;
+
+	const char *num_ch = "0123456789abcdef";
+	if (char2num(ch + 2, res, num_ch) < 0)
+        return 0;
+
+	return 1;
+}
+
+int mon_showmapping(int argc, char **argv, struct Trapframe *tf) {
+	if (argc != 3) {
+		cprintf("Usage: showmappings <begin addr> <end addr>\n");
+		return 0;
+	}
+
+	uint32_t begin, end;
+	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
+		goto error;
+
+	if (begin > end) {
+		cprintf("The begin addr should be smaller than end addr\n");
+		return 0;
+	}
+	
+    show_map(begin, end);
+	return 0;
+
+error:
+	cprintf("Invalid input!\n");
+	return 0;
+}
+
+int mon_pagechmod(int argc, char **argv, struct Trapframe *tf) {
+	if (argc < 3)
+		goto error;
+
+	uint32_t addr = 0;
+	if (!parse(argv[1], &addr))
+		goto error;
+
+  int perm = 0, i = 2;
+  for (; i < argc; i++) {
+    if (!strncmp(argv[i], "P", 1))
+			perm |= PTE_P;
+    else if (!strncmp(argv[i], "W", 1))
+			perm |= PTE_W;
+		else if (!strncmp(argv[i], "U", 1))
+			perm |= PTE_U;
+		else if (!strncmp(argv[i], "PWT", 3))
+			perm |= PTE_PWT;
+		else if (!strncmp(argv[i], "PCD", 3))
+			perm |= PTE_PCD;
+		else if (!strncmp(argv[i], "A", 1))
+			perm |= PTE_A;
+		else if (!strncmp(argv[i], "D", 1))
+			perm |= PTE_D;
+		else if (!strncmp(argv[i], "G", 1))
+			perm |= PTE_G;
+		else {
+			cprintf("The privilege bit: %s is invalid\n", argv[i]);
+			return 0;
+		}
+  }
+	if (!page_chmod(perm, addr))
+		cprintf("The addr of %08x hasn't been mapped\n", addr);
+	return 0;
+
+error:
+	cprintf("Usage: pagechmod <addr> <options...>\n");
+	return 0;
+}
+
+int mon_memdump(int argc, char **argv, struct Trapframe *tf) {
+	if (argc < 4)
+		goto error;
+
+	uint32_t begin = 0, end = 0, i, count = 0;
+	if (!parse(argv[1], &begin) || !parse(argv[2], &end))
+		goto error;
+	
+	if (begin > end) {
+		cprintf("The begin addr should be smaller than end addr\n");
+		return 0;
+	}
+
+	if (!strncmp("v", argv[3], 1)); // Do nothing
+	else if (!strncmp("p", argv[3], 1)) {
+		if (end > 0x10000000) {
+			cprintf("The address yo input excess the 2 ^ 32!\n");
+			return 0;
+		}
+		begin += KERNBASE;
+		end += KERNBASE;
+	}
+	else goto error;
+
+	/* Check whether the addr is valid */
+	
+	for (i = ROUNDDOWN(begin, PGSIZE); i < end; i+= PGSIZE) {
+		if (!pgdir_walk(kern_pgdir, (const void *)i, 0)) {
+			cprintf("The address is invlid!\n");
+			return 0;
+		}
+	}
+
+
+	cprintf("0x%08x: ", begin);
+	for (i = begin; i < end; i++, count++) {
+		if (count == 10) {
+			cprintf("\n0x%08x: ", begin + i);
+			count = 0;
+		}
+		cprintf("%02x ", ((uint32_t)*(char *)i & 0xff));
+	}
+	
+	cprintf("\n");
+	return 0;
+	error:
+		cprintf("Usage: memdump <begin addr> <end addr> <option>\n");
+		return 0;
+}
+
+int mon_c(int argc, char **argv, struct Trapframe *tf) {
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+	}
+	tf->tf_eflags &= ~FL_TF;
+	return -1;
+}
+
+int mon_si(int argc, char **argv, struct Trapframe *tf) {
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+
+	}
+	struct Eipdebuginfo info;
+		debuginfo_eip(tf->tf_eip, &info);
+		cprintf("tf_eip=%08x\n", tf->tf_eip);
+		cprintf("%s:%d: %.*s+%d\n", info.eip_file, info.eip_line,
+		info.eip_fn_namelen ,info.eip_fn_name, tf->tf_eip - info.eip_fn_addr);
+	tf->tf_eflags |= FL_TF;;
+	return -1;
+}
+
+int mon_x(int argc, char **argv, struct Trapframe *tf) {
+	// To Do: Need to check whether the address is valid
+	if (!tf) {
+		cprintf("This instr only available in debugger!\n");
+		return 0;
+	}
+
+	uint32_t addr;
+	if (!parse(argv[1], &addr))
+		goto error;
+	cprintf("%d\n", ((uint32_t)*(char *)addr & 0xff));
+	 	
+	return 0;
+	error:
+		cprintf("The input is not valid!\n");
+		return 0;
+}
 
 
 /***** Kernel monitor command interpreter *****/
