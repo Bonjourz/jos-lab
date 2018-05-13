@@ -50,9 +50,13 @@ bc_pgfault(struct UTrapframe *utf)
 	//
 	// LAB 5: Your code here
 	addr = ROUNDDOWN(addr, PGSIZE);
-	sys_page_alloc(0, addr, PTE_P | PTE_U | PTE_W);
+	if ((r = sys_page_alloc(0, addr, PTE_P | PTE_U | PTE_W)) < 0)
+		panic("sys_page_alloc fail: %e", r);
+
 	ide_read(blockno * BLKSECTS, addr, BLKSECTS);
-	sys_page_map(0, addr, 0, addr, PTE_P | PTE_U | PTE_W);
+	
+	if ((r = sys_page_map(0, addr, 0, addr, PTE_P | PTE_U | PTE_W)) < 0)
+		panic("sys_page_map fail: %e", r);
 
 	// Check that the block we read was allocated. (exercise for
 	// the reader: why do we do this *after* reading the block
@@ -80,9 +84,12 @@ flush_block(void *addr)
 	addr = ROUNDDOWN(addr, PGSIZE);
 	if (!va_is_mapped(addr) || !va_is_dirty(addr))
 		return;
-	
+
+	int r;
 	ide_write(blockno * BLKSECTS, addr, BLKSECTS);
-	sys_page_map(0, addr, 0, addr, PTE_SYSCALL);
+
+	if ((r = sys_page_map(0, addr, 0, addr, PTE_SYSCALL)) < 0)
+		panic("sys_page_map fail: %e\n", r);
 }
 
 // Test that the block cache works, by smashing the superblock and

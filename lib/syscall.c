@@ -105,6 +105,10 @@ sys_page_unmap(envid_t envid, void *va)
 	return syscall(SYS_page_unmap, 1, envid, (uint32_t) va, 0, 0, 0);
 }
 
+int sys_exec_set_status(envid_t envid) {
+	return syscall(SYS_exec_set_status, 1, envid, 0, 0, 0, 0);
+}
+
 // sys_exofork is inlined in lib.h
 
 int

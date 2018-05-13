@@ -1,0 +1,16 @@
+1. How long approximately did it take you to do this lab?
+About three days.
+
+2. Describe what you did to solve your chosen challenge problem.
+
+I choose the "Unix-style exec implementation" challenge.
+
+The exec() code is almost the same to the spawn() code. It first
+create a child environment, and configure it according to the 
+father environment, set it stack and copy the code to the 
+corresponding address. Then at the end of spawn(), call the 
+sys_exec_set_status(). It destroy the curenv(parent environment), 
+and set the curenv to the child environment, and set it RUNNABLE.
+
+You can test my code by remove the quotation in the ‘lib/spawn.c’:
+// #define UNIX_EXEC

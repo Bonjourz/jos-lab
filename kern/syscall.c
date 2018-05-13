@@ -467,6 +467,21 @@ sys_sbrk(uint32_t inc)
 	return env->heap_top;
 }
 
+static int sys_exec_set_status(envid_t envid) {
+	struct Env *env, *old;
+	int r;
+	if ((r = envid2env(envid, &env, 0)) < 0)
+		return r;
+	
+	old = curenv;
+	curenv = env;
+	curenv->env_status = ENV_RUNNABLE;
+	lcr3(PADDR(curenv->env_pgdir));
+	env_destroy(old);
+	env_pop_tf(&curenv->env_tf);
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 static int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, 
@@ -524,6 +539,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 			res = sys_ipc_recv((void *)a1);
 		} case SYS_sbrk: {
 			res = sys_sbrk(a1);
+			break;
+		} case SYS_exec_set_status: {
+			res = sys_exec_set_status(a1);
 			break;
 		}
 		res = -E_INVAL;
