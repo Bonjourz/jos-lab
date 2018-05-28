@@ -7,10 +7,10 @@
 // define USE_TICKET_SPIN_LOCK.
 // LAB 4: Your code here.
 
-//#define USE_TICKET_SPIN_LOCK
+// #define USE_TICKET_SPIN_LOCK
 
 // Comment this to disable spinlock debugging
-#define DEBUG_SPINLOCK
+//#define DEBUG_SPINLOCK
 
 // Mutual exclusion lock.
 struct spinlock {

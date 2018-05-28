@@ -4,6 +4,7 @@
 #define UTEMP2USTACK(addr)	((void*) (addr) + (USTACKTOP - PGSIZE) - UTEMP)
 #define UTEMP2			(UTEMP + PGSIZE)
 #define UTEMP3			(UTEMP2 + PGSIZE)
+// #define UNIX_EXEC
 
 // Helper functions for spawn.
 static int init_stack(envid_t child, const char **argv, uintptr_t *init_esp);
@@ -127,9 +128,13 @@ spawn(const char *prog, const char **argv)
 	if ((r = sys_env_set_trapframe(child, &child_tf)) < 0)
 		panic("sys_env_set_trapframe: %e", r);
 
+# ifndef UNIX_EXEC
 	if ((r = sys_env_set_status(child, ENV_RUNNABLE)) < 0)
 		panic("sys_env_set_status: %e", r);
-
+# else
+	if ((r = sys_exec_set_status(child)) < 0)
+		panic("sys_exec_set_status: %e", r);
+# endif
 	return child;
 
 error:

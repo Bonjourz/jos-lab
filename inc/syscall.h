@@ -23,6 +23,7 @@ enum {
 
 	SYS_sbrk,
 	SYS_time_msec,
+	SYS_exec_set_status,
 	NSYSCALLS
 };
 
