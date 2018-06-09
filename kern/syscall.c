@@ -14,6 +14,8 @@
 #include <kern/time.h>
 #include <kern/spinlock.h>
 
+#include <kern/e1000.h>
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -488,7 +490,22 @@ static int
 sys_time_msec(void)
 {
 	// LAB 6: Your code here.
-	panic("sys_time_msec not implemented");
+	return time_msec();
+}
+
+static int sys_net_try_send(const char* buf, uint32_t len) {
+	user_mem_assert(curenv, buf, len, 0);
+	return e1000_transmit(buf, len);
+}
+
+static int sys_net_try_receive(char *buf) {
+	user_mem_assert(curenv, ROUNDDOWN(buf, PGSIZE), PGSIZE, PTE_W);
+	uint32_t len;
+	int r;
+	if ((r = e1000_receive(buf, &len)) < 0)
+		return r;
+		
+	return len;
 }
 
 
@@ -550,8 +567,17 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		} case SYS_sbrk: {
 			res = sys_sbrk(a1);
 			break;
+		} case SYS_time_msec:{
+			res = sys_time_msec();
+			break;
 		} case SYS_exec_set_status: {
 			res = sys_exec_set_status(a1);
+			break;
+		} case SYS_net_try_send: {
+			res = sys_net_try_send((const char *)a1, (uint32_t)a2);
+			break;
+		} case SYS_net_try_receive: {
+			res = sys_net_try_receive((char *)a1);
 			break;
 		}
 		res = -E_INVAL;

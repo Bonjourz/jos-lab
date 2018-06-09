@@ -61,6 +61,9 @@ void	page_remove(pde_t *pgdir, void *va);
 struct Page *page_lookup(pde_t *pgdir, void *va, pte_t **pte_store);
 void	page_decref(struct Page *pp);
 
+void
+boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
+
 void	tlb_invalidate(pde_t *pgdir, void *va);
 void  show_map(uint32_t begin, uint32_t end);
 int  page_chmod(int perm, uint32_t addr);

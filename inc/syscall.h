@@ -24,6 +24,9 @@ enum {
 	SYS_sbrk,
 	SYS_time_msec,
 	SYS_exec_set_status,
+	
+	SYS_net_try_send,
+	SYS_net_try_receive,
 	NSYSCALLS
 };
 

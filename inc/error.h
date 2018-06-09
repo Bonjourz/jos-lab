@@ -26,6 +26,8 @@ enum {
 	E_NOT_EXEC	= 14,	// File not a valid executable
 	E_NOT_SUPP	= 15,	// Operation not supported
 
+	E_TX_FULL = 16,		// Transfer buffer if full
+	E_REC_EMPTY = 17,	// Receive buffer is empty
 	MAXERROR
 };
 
