@@ -12,6 +12,13 @@ struct rec_desc rec_descarray[E1000_NREC] __attribute__((aligned(16)));
 char tx_buffer[E1000_NTX][TX_PKT_SIZE];
 char rec_buffer[E1000_NREC][REC_PKT_SIZE];
 
+uint16_t read_eeprom(int index) {
+    volatile uint32_t *eeprd = (volatile uint32_t *)&e1000[E1000_EERD >> OFF];
+    *eeprd = (index << E1000_EEPROM_RW_ADDR_SHIFT) | E1000_EEPROM_RW_REG_START;
+    while ((*eeprd & E1000_EEPROM_RW_REG_DONE) == 0);
+    return *eeprd >> E1000_EEPROM_RW_REG_DATA;
+}
+
 int e1000_transmit(const char *buf, uint32_t len) {
     if (len < 0 || len > TX_PKT_SIZE)
         return -E_INVAL;
@@ -26,6 +33,7 @@ int e1000_transmit(const char *buf, uint32_t len) {
     tx_descarray[tdt].status &= ~E1000_TXD_STAT_DD;
     tx_descarray[tdt].cmd |= E1000_TXD_CMD_EOP;
     tx_descarray[tdt].cmd |= E1000_TXD_CMD_RS;
+    tx_descarray[tdt].cmd |= E1000_TXD_CMD_RPS;
 
    e1000[E1000_TDT >> OFF] = (tdt + 1) % E1000_NTX;
    return 0;
@@ -83,8 +91,11 @@ int attach_82540EM(struct pci_func *pcif) {
 
     /* Receive Initialization */
     /* MAC address */
-    e1000[E1000_RAL >> OFF] = (0x12 << 24) | (0x00 << 16) | (0x54 << 8) | 0x52;
-    e1000[E1000_RAH >> OFF] = (0x56 << 8) | 0x34;
+    uint16_t mac0 = read_eeprom(0);
+    uint16_t mac1 = read_eeprom(1);
+    uint16_t mac2 = read_eeprom(2);
+    e1000[E1000_RAL >> OFF] = mac1 << 16 | mac0;
+    e1000[E1000_RAH >> OFF] = mac2;
     e1000[E1000_RAH >> OFF] |= E1000_RAH_AV;
 
     /* MTA */

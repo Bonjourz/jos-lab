@@ -33,6 +33,7 @@
 #define E1000_TXD_STAT_DD    0x00000001 /* Descriptor Done */
 #define E1000_TXD_CMD_EOP    0x00000001 /* End of Packet */
 #define E1000_TXD_CMD_RS     (1 << 3) /* Report Status */
+#define E1000_TXD_CMD_RPS    (1 << 4) /* Report Packet Sent */
 
 /* Receive */
 #define REC_PKT_SIZE   2048
@@ -55,6 +56,12 @@
 #define E1000_RCTL_SECRC          0x04000000    /* Strip Ethernet CRC */
 
 #define E1000_RXD_STAT_DD       0x01    /* Descriptor Done */
+
+#define E1000_EERD     0x00014  /* EEPROM Read - RW */
+#define E1000_EEPROM_RW_REG_DATA   16   /* Offset to data in EEPROM read/write registers */
+#define E1000_EEPROM_RW_ADDR_SHIFT 8    /* Shift to the address bits */
+#define E1000_EEPROM_RW_REG_DONE   0x10 /* Offset to READ/WRITE done bit */
+#define E1000_EEPROM_RW_REG_START  1    /* First bit for telling part to start operation */
 
 /* Transmit Descriptor */
 struct tx_desc {

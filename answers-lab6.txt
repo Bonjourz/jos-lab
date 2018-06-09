@@ -1,0 +1,32 @@
+Question
+
+1. How did you structure your transmit implementation? 
+In particular, what do you do if the transmit ring is full?
+
+When transmit, first read the E1000_TXD_STAT_DD of the tail
+desciptor. If that is not set, it means the transmit buffer
+is full now, return information of full buffer immediately.
+If the E1000_TXD_STAT_DD bit is set to 1, copy the data to
+the corresponding buffer slot, and update the length of the
+data packet. Then unset the E1000_TXD_STAT_DD bit, and set 
+E1000_TXD_CMD_EOP, E1000_TXD_CMD_RS, E1000_TXD_CMD_RPS bit.
+
+2. How did you structure your receive implementation?
+In particular, what do you do if the receive queue is empty 
+and a user environment requests the next incoming packet?
+
+Get the tail desciptor of the buffer. Read the E1000_RXD_STAT_DD
+bit. If it is set, it means the buffer is empty. And the user
+environment will be hang to wait the packet arrival. If a packet
+has arrived, get the length of the pakcet, and copy its data
+to the buffer. Then unset the E1000_TXD_STAT_DD bit, and update 
+the tail desciptor.
+
+3. What does the web page served by JOS's web server say?
+
+This file came from JOS.
+Cheesy web page!
+
+4. How long approximately did it take you to do this lab?
+
+About 24 hours.
